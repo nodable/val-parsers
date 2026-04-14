@@ -1,5 +1,5 @@
 {
-  "name": "@nodable/entites",
+  "name": "@nodable/entities",
   "version": "1.0.0",
   "description": "Replace XML, HTML, External entites with security controls",
   "main": "./src/index.js",
