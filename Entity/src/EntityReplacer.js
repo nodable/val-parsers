@@ -140,22 +140,22 @@ export default class EntityReplacer {
   constructor(options = {}) {
     // Immutable config resolved at construction
     this._defaultTable = resolveTable(options.default, DEFAULT_XML_ENTITIES, true);
-    this._systemTable  = resolveTable(options.system, null, false);
-    this._ampEnabled   = options.amp !== false && options.amp !== null;
+    this._systemTable = resolveTable(options.system, null, false);
+    this._ampEnabled = options.amp !== false && options.amp !== null;
 
     this._maxTotalExpansions = options.maxTotalExpansions || 0;
-    this._maxExpandedLength  = options.maxExpandedLength  || 0;
-    this._applyLimitsTo      = resolveApplyLimitsTo(options.applyLimitsTo ?? 'external');
-    this._postCheck          = typeof options.postCheck === 'function' ? options.postCheck : null;
+    this._maxExpandedLength = options.maxExpandedLength || 0;
+    this._applyLimitsTo = resolveApplyLimitsTo(options.applyLimitsTo ?? 'external');
+    this._postCheck = typeof options.postCheck === 'function' ? options.postCheck : r => r;
 
     // Pre-computed category limit flags
     this._limitExternal = this._applyLimitsTo === 'all' || (this._applyLimitsTo instanceof Set && this._applyLimitsTo.has('external'));
-    this._limitSystem   = this._applyLimitsTo === 'all' || (this._applyLimitsTo instanceof Set && this._applyLimitsTo.has('system'));
-    this._limitDefault  = this._applyLimitsTo === 'all' || (this._applyLimitsTo instanceof Set && this._applyLimitsTo.has('default'));
+    this._limitSystem = this._applyLimitsTo === 'all' || (this._applyLimitsTo instanceof Set && this._applyLimitsTo.has('system'));
+    this._limitDefault = this._applyLimitsTo === 'all' || (this._applyLimitsTo instanceof Set && this._applyLimitsTo.has('default'));
 
     // Frozen immutable entry arrays
     this._defaultEntries = this._defaultTable ? Object.entries(this._defaultTable) : [];
-    this._systemEntries  = this._systemTable  ? Object.entries(this._systemTable)  : [];
+    this._systemEntries = this._systemTable ? Object.entries(this._systemTable) : [];
 
     // Persistent external entities — survive across documents
     /** @type {Array<[string, {regex: RegExp, val: string}]>} */
@@ -167,7 +167,7 @@ export default class EntityReplacer {
 
     // Per-document counters — reset in getInstance()
     this._totalExpansions = 0;
-    this._expandedLength  = 0;
+    this._expandedLength = 0;
   }
 
   // -------------------------------------------------------------------------
@@ -215,8 +215,8 @@ export default class EntityReplacer {
    */
   addInputEntities(map) {
     this._totalExpansions = 0;
-    this._expandedLength  = 0;
-    this._inputEntries    = buildEntries(map);
+    this._expandedLength = 0;
+    this._inputEntries = buildEntries(map);
   }
 
   // -------------------------------------------------------------------------
@@ -233,9 +233,9 @@ export default class EntityReplacer {
    * @returns {EntityReplacer} `this`, after reset
    */
   getInstance() {
-    this._inputEntries    = [];
+    this._inputEntries = [];
     this._totalExpansions = 0;
-    this._expandedLength  = 0;
+    this._expandedLength = 0;
     return this;
   }
 
@@ -263,6 +263,7 @@ export default class EntityReplacer {
 
     const original = str;
 
+
     // 1. Persistent external entities
     if (this._persistentEntries.length > 0) {
       str = this._applyEntries(str, this._persistentEntries, this._limitExternal);
@@ -273,14 +274,14 @@ export default class EntityReplacer {
       str = this._applyEntries(str, this._inputEntries, this._limitExternal);
     }
 
-    // 3. System (named groups)
-    if (this._systemEntries.length > 0 && str.indexOf('&') !== -1) {
-      str = this._applyEntries(str, this._systemEntries, this._limitSystem);
-    }
-
-    // 4. Default XML entities (lt / gt / apos / quot)
+    // 3. Default XML entities (lt / gt / apos / quot)
     if (this._defaultEntries.length > 0 && str.indexOf('&') !== -1) {
       str = this._applyEntries(str, this._defaultEntries, this._limitDefault);
+    }
+
+    // 4. System (named groups)
+    if (this._systemEntries.length > 0 && str.indexOf('&') !== -1) {
+      str = this._applyEntries(str, this._systemEntries, this._limitSystem);
     }
 
     // 5. &amp; — always last
@@ -289,9 +290,7 @@ export default class EntityReplacer {
     }
 
     // 6. postCheck
-    if (this._postCheck !== null && str !== original) {
-      str = this._postCheck(str, original);
-    }
+    str = this._postCheck(str, original);
 
     return str;
   }
@@ -302,8 +301,8 @@ export default class EntityReplacer {
 
   _applyEntries(str, entries, track) {
     const limitExpansions = track && this._maxTotalExpansions > 0;
-    const limitLength     = track && this._maxExpandedLength > 0;
-    const trackAny        = limitExpansions || limitLength;
+    const limitLength = track && this._maxExpandedLength > 0;
+    const trackAny = limitExpansions || limitLength;
 
     for (let i = 0; i < entries.length; i++) {
       if (str.indexOf('&') === -1) break;

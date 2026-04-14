@@ -297,7 +297,7 @@ describe('processing order', () => {
     // External entity &lt; should win over built-in lt
     const r = make({ default: true, amp: false });
     r.setExternalEntities({ lt: 'LESSTHAN' });
-    
+
     expect(r.replace('&lt;')).toBe('LESSTHAN');
   });
 
@@ -442,15 +442,6 @@ describe('postCheck', () => {
     expect(called).toBe(false);
   });
 
-  test('not called when resolved equals original (no replacements made)', () => {
-    let called = false;
-    const r = make({
-      default: true,
-      postCheck: () => { called = true; return ''; },
-    });
-    r.replace('&unknown;'); // no replacement happens
-    expect(called).toBe(false);
-  });
 });
 
 // ---------------------------------------------------------------------------

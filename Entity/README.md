@@ -52,7 +52,7 @@ replacer.replace('&copy; 2024 &mdash; Price: &pound;9.99');
 Entities are processed in this fixed order — not configurable:
 
 ```
-persistent external → input/runtime → system → default → amp
+persistent input/runtime → external → system → default → amp
 ```
 
 ### `persistent external` — Caller-supplied configuration entities
@@ -136,7 +136,7 @@ const replacer = new EntityReplacer({
   applyLimitsTo: 'external',   // 'external' (default) | 'all' | ['external', 'system'] | ...
 
   // Post-processing hook — fires once on the fully resolved string
-  postCheck: null,   // (resolved: string, original: string) => string
+  postCheck: resolved => resolved,   // (resolved: string, original: string) => string
 });
 ```
 
@@ -469,7 +469,9 @@ evp.addInputEntities({ company: 'Nodable' }); // called by BaseOutputBuilder
 const result: string = evp.parse('&lt;&copy;&brand;');
 ```
 
+## Note
 
+This library silently skip numeric entities which are out range. For example `&#1114112;` is skipped.
 
 ## License
 

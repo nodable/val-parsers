@@ -28,6 +28,7 @@ export const COMMON_HTML = {
   frac12: { regex: /&(frac12|#0*189|#x0*[Bb][Dd]);/g, val: '\u00bd' },
   frac14: { regex: /&(frac14|#0*188|#x0*[Bb][Cc]);/g, val: '\u00bc' },
   frac34: { regex: /&(frac34|#0*190|#x0*[Bb][Ee]);/g, val: '\u00be' },
+  inr: { regex: /&(inr|#0*8377);/g, val: "₹" },
 };
 
 /**
@@ -90,10 +91,20 @@ export const ARROW_ENTITIES = {
 export const NUMERIC_ENTITIES = {
   num_dec: {
     regex: /&#0*([0-9]{1,7});/g,
-    val: (_, s) => String.fromCodePoint(Number.parseInt(s, 10)),
+    val: (_, s) => fromCodePoint(s, 10, "&#"),
   },
   num_hex: {
     regex: /&#x0*([0-9a-fA-F]{1,6});/g,
-    val: (_, s) => String.fromCodePoint(Number.parseInt(s, 16)),
+    val: (_, s) => fromCodePoint(s, 16, "&#x"),
   },
 };
+
+function fromCodePoint(str, base, prefix) {
+  const codePoint = Number.parseInt(str, base);
+
+  if (codePoint >= 0 && codePoint <= 0x10FFFF) {
+    return String.fromCodePoint(codePoint);
+  } else {
+    return prefix + str + ";";
+  }
+}
