@@ -28,6 +28,9 @@
   ],
   "author": "Amit Gupta (https://solothought.com)",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "devDependencies": {
     "jest": "^29.7.0"
   },
