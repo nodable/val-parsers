@@ -212,9 +212,8 @@ export default class EntityReplacer {
    * The builder factory calls this when creating a new builder instance,
    * ensuring each document starts clean regardless of whether it has a DOCTYPE.
    *
-   * @returns `this` — for convenient chaining in factory code
    */
-  getInstance(): this;
+  reset(): this;
 
   // -------------------------------------------------------------------------
   // Primary API
@@ -225,26 +224,18 @@ export default class EntityReplacer {
    * Returns `str` unchanged if it contains no `&` character (fast path).
    */
   replace(str: string): string;
+
+  /**
+   * wrapper on replace()
+   */
+  parse(str: string): string;
 }
 
 // ---------------------------------------------------------------------------
 // EntitiesValueParser
 // ---------------------------------------------------------------------------
 
-/**
- * Options accepted by `EntitiesValueParser` — a superset of `EntityReplacerOptions`.
- */
-export interface EntitiesValueParserOptions extends EntityReplacerOptions {
-  /**
-   * Initial persistent external entity map loaded at construction time.
-   * Values must not contain `&` (to prevent recursive expansion).
-   * Equivalent to calling `setExternalEntities()` after construction.
-   *
-   * @example
-   * new EntitiesValueParser({ entities: { copy: '©', trade: '™' } })
-   */
-  entities?: Record<string, string>;
-}
+
 
 /**
  * Raw DOCTYPE entity map shape as produced by `DocTypeReader`.
@@ -268,112 +259,6 @@ export interface ValueParserContext {
   elementType?: string;
   matcher?: unknown;
   isLeafNode?: boolean;
-}
-
-/**
- * `EntitiesValueParser` — value-parser adapter that wraps `EntityReplacer`
- * for use with `@nodable/flexible-xml-parser`.
- *
- * ## Setup
- *
- * ```ts
- * import { EntitiesValueParser, COMMON_HTML } from '@nodable/entities';
- *
- * const evp = new EntitiesValueParser({ system: COMMON_HTML });
- *
- * // Persistent entities — never wiped between documents:
- * evp.setExternalEntities({ brand: 'Acme', product: 'Widget' });
- *
- * // Register with the builder factory:
- * builder.registerValueParser('entity', evp);
- *
- * const parser = new XMLParser({ OutputBuilder: builder });
- * parser.parse(xml);
- * ```
- *
- * ## Lifecycle (called automatically by the builder / parser)
- *
- * | Caller          | Method                | When                                      |
- * |-----------------|----------------------|-------------------------------------------|
- * | Builder factory | `getInstance()`       | Before each `parse()` call                |
- * | Builder         | `addInputEntities()`  | After DOCTYPE is read (if present)        |
- * | Builder         | `parse(val)`          | For each text / attribute value           |
- */
-export class EntitiesValueParser {
-  constructor(options?: EntitiesValueParserOptions);
-
-  // -------------------------------------------------------------------------
-  // Persistent external entity registration
-  // -------------------------------------------------------------------------
-
-  /**
-   * Replace the full set of persistent external entities.
-   *
-   * These survive across all documents and are **not** cleared by
-   * `getInstance()`. Call this once after construction (or at any time to
-   * swap the entire persistent entity map).
-   *
-   * @throws if any value contains `&`
-   */
-  setExternalEntities(map: Record<string, string>): void;
-
-  /**
-   * Append a single persistent external entity.
-   *
-   * Provide the bare name without `&` and `;` — e.g. `'copy'` for `&copy;`.
-   * Existing persistent entities are preserved.
-   *
-   * @throws if `key` contains `&` or `;`
-   * @throws if `value` is not a string or contains `&`
-   */
-  addEntity(key: string, value: string): void;
-
-  // -------------------------------------------------------------------------
-  // Builder factory integration
-  // -------------------------------------------------------------------------
-
-  /**
-   * Reset per-document state and return `this`.
-   *
-   * Clears input/runtime entities (DOCTYPE) and resets expansion counters.
-   * Does **not** clear persistent external entities.
-   *
-   * The builder factory calls this when creating a new builder instance.
-   *
-   * @returns `this`
-   */
-  getInstance(): this;
-
-  // -------------------------------------------------------------------------
-  // DOCTYPE integration — called automatically by BaseOutputBuilder
-  // -------------------------------------------------------------------------
-
-  /**
-   * Receive DOCTYPE entities for the current document.
-   *
-   * Called automatically by `BaseOutputBuilder`. Stores entities separately
-   * from persistent entities so they are wiped on the next `getInstance()`.
-   * Also resets per-document expansion counters.
-   *
-   * Accepts both plain string values and `{ regx, val }` / `{ regex, val }`
-   * objects as produced by `DocTypeReader`.
-   */
-  addInputEntities(entities: DocTypeEntityMap): void;
-
-  // -------------------------------------------------------------------------
-  // ValueParser interface
-  // -------------------------------------------------------------------------
-
-  /**
-   * Replace entity references in `val`.
-   *
-   * Implements the `ValueParser` interface. The `context` argument is
-   * accepted but ignored — replacement is applied uniformly to all values.
-   *
-   * Returns non-string input unchanged.
-   */
-  parse(val: string, context?: ValueParserContext): string;
-  parse(val: unknown, context?: ValueParserContext): unknown;
 }
 
 // ---------------------------------------------------------------------------

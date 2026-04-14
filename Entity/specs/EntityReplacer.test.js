@@ -223,10 +223,10 @@ describe('persistent external entities (setExternalEntities)', () => {
     expect(r.replace('&a; &b;')).toBe('AAA BBB');
   });
 
-  test('persistent entities survive getInstance()', () => {
+  test('persistent entities survive reset()', () => {
     const r = make({ default: false, amp: false });
     r.setExternalEntities({ brand: 'Acme' });
-    r.getInstance(); // simulates new document
+    r.reset(); // simulates new document
     expect(r.replace('&brand;')).toBe('Acme');
   });
 });
@@ -252,19 +252,19 @@ describe('input / runtime entities (addInputEntities)', () => {
     expect(() => r.replace('&x;&x;&x;&x;&x;')).not.toThrow(); // exactly 5 — ok
   });
 
-  test('getInstance() wipes input entities', () => {
+  test('reset() wipes input entities', () => {
     const r = make({ default: false, amp: false });
     r.addInputEntities({ docEnt: 'VALUE' });
     expect(r.replace('&docEnt;')).toBe('VALUE');
-    r.getInstance(); // simulate next document — no DOCTYPE
+    r.reset(); // simulate next document — no DOCTYPE
     expect(r.replace('&docEnt;')).toBe('&docEnt;'); // wiped
   });
 
-  test('getInstance() resets counters', () => {
+  test('reset() resets counters', () => {
     const r = make({ maxTotalExpansions: 2, applyLimitsTo: 'external' });
     r.addInputEntities({ x: 'X' });
     r.replace('&x;&x;'); // exhaust counter
-    r.getInstance(); // reset
+    r.reset(); // reset
     r.addInputEntities({ x: 'X' });
     expect(() => r.replace('&x;&x;')).not.toThrow();
   });
@@ -272,8 +272,8 @@ describe('input / runtime entities (addInputEntities)', () => {
   test('input entities do not bleed across documents without addInputEntities', () => {
     const r = make({ default: false, amp: false });
     r.addInputEntities({ tmp: 'DOC1' });
-    r.getInstance(); // second document has no DOCTYPE
-    // tmp must be gone — getInstance() wipes input entries
+    r.reset(); // second document has no DOCTYPE
+    // tmp must be gone — reset() wipes input entries
     expect(r.replace('&tmp;')).toBe('&tmp;');
   });
 });
@@ -445,18 +445,14 @@ describe('postCheck', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 9. getInstance() — builder factory integration
+// 9. reset() — builder factory integration
 // ---------------------------------------------------------------------------
-describe('getInstance()', () => {
-  test('returns same instance (this)', () => {
-    const r = make({ default: true });
-    expect(r.getInstance()).toBe(r);
-  });
+describe('reset()', () => {
 
   test('clears input entities', () => {
     const r = make({ default: false, amp: false });
     r.addInputEntities({ tmp: 'DOC1' });
-    r.getInstance();
+    r.reset();
     expect(r.replace('&tmp;')).toBe('&tmp;');
   });
 
@@ -464,7 +460,7 @@ describe('getInstance()', () => {
     const r = make({ maxTotalExpansions: 2, applyLimitsTo: 'external' });
     r.addInputEntities({ x: 'X' });
     r.replace('&x;&x;'); // exhaust counter
-    r.getInstance();
+    r.reset();
     r.addInputEntities({ x: 'X' });
     expect(() => r.replace('&x;&x;')).not.toThrow();
   });
@@ -472,7 +468,7 @@ describe('getInstance()', () => {
   test('does NOT clear persistent entities', () => {
     const r = make({ default: false, amp: false });
     r.setExternalEntities({ brand: 'Acme' });
-    r.getInstance();
+    r.reset();
     expect(r.replace('&brand;')).toBe('Acme');
   });
 });

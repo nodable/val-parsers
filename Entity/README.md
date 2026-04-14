@@ -4,7 +4,7 @@ Standalone, zero-dependency XML/HTML entity replacement with:
 
 - **5 entity categories** processed in a fixed, predictable order
 - **Persistent vs. input entity separation** — no state leaks between documents
-- **`getInstance()`** — clean per-document reset without cloning
+- **`reset()`** — clean per-document reset without cloning
 - **Composable named entity groups** (HTML, currency, math, arrows, numeric refs)
 - **Security limits** — cap total expansions and expanded length per document
 - **Granular limit targeting** — apply limits to any subset of categories
@@ -57,7 +57,7 @@ persistent input/runtime → external → system → default → amp
 
 ### `persistent external` — Caller-supplied configuration entities
 
-Entities set at configuration time that survive across all documents. Never wiped by `getInstance()`. Set via `setExternalEntities()` or `addExternalEntity()` / `addEntity()`.
+Entities set at configuration time that survive across all documents. Never wiped by `reset()`. Set via `setExternalEntities()` or `addExternalEntity()` / `addEntity()`.
 
 ```js
 const replacer = new EntityReplacer({ default: true });
@@ -68,7 +68,7 @@ replacer.replace('&brand; makes &product;');
 
 ### `input / runtime` — Per-document DOCTYPE entities
 
-Entities injected by the parser from the document's DOCTYPE block. Stored separately from persistent entities and **wiped on every `getInstance()` call** so they cannot leak between documents.
+Entities injected by the parser from the document's DOCTYPE block. Stored separately from persistent entities and **wiped on every `reset()` call** so they cannot leak between documents.
 
 Set via `addInputEntities()`. Never call this manually — `BaseOutputBuilder` calls it automatically.
 
@@ -155,7 +155,7 @@ replacer.replace('Tom &amp; Jerry &lt;cartoons&gt;');
 
 ### `setExternalEntities(map)`
 
-Replace the full set of **persistent** external entities. These survive across all documents and are not cleared by `getInstance()`.
+Replace the full set of **persistent** external entities. These survive across all documents and are not cleared by `reset()`.
 
 ```js
 replacer.setExternalEntities({ brand: 'Acme', year: '2025' });
@@ -174,7 +174,7 @@ replacer.addExternalEntity('year', '2025');
 
 ### `addInputEntities(map)`
 
-Inject **input/runtime** (DOCTYPE) entities for the current document. These are stored separately from persistent entities and wiped on the next `getInstance()` call. Also resets per-document expansion counters.
+Inject **input/runtime** (DOCTYPE) entities for the current document. These are stored separately from persistent entities and wiped on the next `reset()` call. Also resets per-document expansion counters.
 
 ```js
 // Called automatically by BaseOutputBuilder — no manual wiring needed.
@@ -183,7 +183,7 @@ replacer.addInputEntities(doctypeEntityMap);
 
 Values containing `&` are silently skipped. Accepts pre-built `{ regex, val }` or `{ regx, val }` objects as produced by `DocTypeReader`.
 
-### `getInstance()`
+### `reset()`
 
 Reset all per-document state and return `this`.
 
@@ -200,9 +200,9 @@ The builder factory calls this when creating a new builder instance, ensuring ea
 
 ```js
 // In a builder factory:
-getInstance() {
+reset() {
   const builder = new MyBuilder(this.config);
-  builder.entityParser = this.entityVP.getInstance();
+  builder.entityParser = this.entityVP.reset();
   return builder;
 }
 ```
@@ -215,12 +215,12 @@ A key design goal is that entities from one document never bleed into the next. 
 
 ```
 Document 1 parse:
-  factory.getInstance()           → evp.getInstance()  [clears input, resets counters]
+  factory.reset()           → evp.reset()  [clears input, resets counters]
   builder sees DOCTYPE            → evp.addInputEntities({ version: '1.0' })
   builder processes values        → evp.parse('&brand; v&version;') → 'Acme v1.0'
 
 Document 2 parse (no DOCTYPE):
-  factory.getInstance()           → evp.getInstance()  [clears &version;, resets counters]
+  factory.reset()           → evp.reset()  [clears &version;, resets counters]
   no DOCTYPE                      → addInputEntities() not called
   builder processes values        → evp.parse('&brand; v&version;') → 'Acme v&version;'
                                     ↑ persistent &brand; works
@@ -300,16 +300,14 @@ postCheck: (resolved) =>
 
 ---
 
-## `EntitiesValueParser` — flex-xml-parser adapter
-
-`EntitiesValueParser` wraps `EntityReplacer` and implements the `ValueParser` interface used by `@nodable/flexible-xml-parser`.
+## Integration with — flex-xml-parser adapter
 
 ### Setup
 
 ```js
-import { EntitiesValueParser, COMMON_HTML } from '@nodable/entities';
+import EntityReplacer, { COMMON_HTML } from '@nodable/entities';
 
-const evp = new EntitiesValueParser({
+const evp = new EntityReplacer({
   system: COMMON_HTML,
   maxTotalExpansions: 500,
 });
@@ -329,7 +327,7 @@ parser.parse(xml);
 All `EntityReplacerOptions` are accepted, plus one extra:
 
 ```js
-new EntitiesValueParser({
+new EntityReplacer({
   // All EntityReplacer options...
   default: true,
   system: COMMON_HTML,
@@ -341,47 +339,19 @@ new EntitiesValueParser({
 })
 ```
 
-### `setExternalEntities(map)`
-
-Replace the full persistent entity map. These entities survive across all documents.
-
-```js
-evp.setExternalEntities({ brand: 'Acme', copy: '©' });
-```
-
-### `addEntity(key, value)`
-
-Append a single persistent external entity. Previously registered entities are preserved.
-
-```js
-evp.addEntity('copy',  '©');
-evp.addEntity('trade', '™');
-evp.addEntity('year',  '2024');
-```
-
-Throws if `key` contains `&` or `;`, or if `value` contains `&`.
-
-### `getInstance()` — called by builder factory
+### `reset()` — called by builder factory
 
 Reset per-document state (input entities + counters) and return `this`. The builder factory calls this each time it creates a new builder instance.
 
 ```js
-// In your CompactObjBuilderFactory.getInstance():
-getInstance() {
+// In your CompactObjBuilderFactory.reset():
+reset() {
   const builder = new CompactObjBuilder(this._config);
   // Reset EVP for the new document:
-  builder.entityParser = this._entityVP.getInstance();
+  builder.entityParser = this._entityVP.reset();
   return builder;
 }
 ```
-
-### `addInputEntities(entities)` — called automatically
-
-Receives the DOCTYPE entity map from `BaseOutputBuilder` once per parse. Resets per-document expansion counters. Accepts both plain string values and `{ regx, val }` objects from `DocTypeReader`.
-
-### `parse(val, context?)`
-
-Implements the `ValueParser` interface. `context` is accepted but ignored. Returns non-string input unchanged.
 
 ---
 
@@ -421,7 +391,7 @@ const replacer = new EntityReplacer({
 | Numeric refs with leading zeros                | ✅                | ✅                  |
 | DOCTYPE / external entity injection            | ❌                | ✅                  |
 | Persistent vs. input entity separation         | ❌                | ✅                  |
-| Per-document reset via `getInstance()`         | ❌                | ✅                  |
+| Per-document reset via `reset()`         | ❌                | ✅                  |
 | Expansion count limit                          | ❌                | ✅                  |
 | Expanded length limit                          | ❌                | ✅                  |
 | `applyLimitsTo` granularity                    | ❌                | ✅                  |
@@ -437,11 +407,9 @@ Full TypeScript declarations are included via `index.d.ts`. No `@types/` package
 
 ```ts
 import EntityReplacer, {
-  EntitiesValueParser,
   COMMON_HTML,
   EntityTable,
   EntityReplacerOptions,
-  EntitiesValueParserOptions,
 } from '@nodable/entities';
 
 // EntityReplacer
@@ -454,19 +422,8 @@ const opts: EntityReplacerOptions = {
 };
 const replacer = new EntityReplacer(opts);
 replacer.setExternalEntities({ brand: 'Acme' });
-replacer.getInstance(); // reset for new document
+replacer.reset(); // reset for new document
 replacer.addInputEntities({ version: '1.0' }); // from DOCTYPE
-
-// EntitiesValueParser
-const evpOpts: EntitiesValueParserOptions = {
-  system: COMMON_HTML,
-  entities: { brand: 'Acme' },
-};
-const evp = new EntitiesValueParser(evpOpts);
-evp.addEntity('copy', '©');
-evp.getInstance();                            // called by builder factory
-evp.addInputEntities({ company: 'Nodable' }); // called by BaseOutputBuilder
-const result: string = evp.parse('&lt;&copy;&brand;');
 ```
 
 ## Note

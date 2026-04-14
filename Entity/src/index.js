@@ -17,7 +17,6 @@
 
 export { default } from './EntityReplacer.js';
 export { DEFAULT_XML_ENTITIES, AMP_ENTITY } from './EntityReplacer.js';
-export { default as EntitiesValueParser } from './EntitiesValueParser.js';
 export {
   COMMON_HTML,
   CURRENCY_ENTITIES,

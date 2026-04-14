@@ -230,13 +230,11 @@ export default class EntityReplacer {
    * The builder factory calls this each time it creates a new builder instance
    * so DOCTYPE entities from a previous document are never carried over.
    *
-   * @returns {EntityReplacer} `this`, after reset
    */
-  getInstance() {
+  reset() {
     this._inputEntries = [];
     this._totalExpansions = 0;
     this._expandedLength = 0;
-    return this;
   }
 
   // -------------------------------------------------------------------------
@@ -295,6 +293,15 @@ export default class EntityReplacer {
     return str;
   }
 
+
+  /**
+   * 
+   * @param {string} val 
+   * @returns 
+   */
+  parse(val) {
+    return this.replace(val);
+  }
   // -------------------------------------------------------------------------
   // Private helpers
   // -------------------------------------------------------------------------
