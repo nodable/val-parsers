@@ -2,92 +2,134 @@
 // @nodable/entities — TypeScript declarations
 // ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// Entity table shape
-// ---------------------------------------------------------------------------
-
 /** A function-based entity replacement value (used for numeric refs). */
 export type EntityValFn = (match: string, captured: string, ...rest: unknown[]) => string;
 
-/** A single entity entry: a regex and its replacement value. */
-export interface EntityEntry {
-  regex: RegExp;
-  val: string | EntityValFn;
+// ---------------------------------------------------------------------------
+// Encoder options
+// ---------------------------------------------------------------------------
+
+export interface EntityEncoderOptions {
+  /**
+   * Whether to encode XML unsafe characters: `&`, `<`, `>`, `"`, `'`.
+   * @default true
+   */
+  encodeXmlSafe?: boolean;
+
+  /**
+   * Whether to encode non‑ASCII characters (e.g. `é` → `&eacute;`) using the
+   * built‑in named entity trie.
+   * @default true
+   */
+  encodeAllNamed?: boolean;
+
+  /**
+   * Maximum number of replacements performed **cumulatively** across all
+   * `encode()` calls. `0` means unlimited.
+   *
+   * Use `reset()` to reset the internal counter.
+   * @default 0
+   */
+  maxReplacements?: number;
 }
 
-/** A map of entity name → EntityEntry. */
-export type EntityTable = Record<string, EntityEntry>;
+// ---------------------------------------------------------------------------
+// EntityEncoder class
+// ---------------------------------------------------------------------------
+
+/**
+ * High‑performance encoder that replaces characters with XML/HTML entities.
+ *
+ * - Escapes XML unsafe characters (`&`, `<`, `>`, `"`, `'`) when `encodeXmlSafe` is true.
+ * - Replaces non‑ASCII characters (e.g. `é`, `©`) with named entities using
+ *   a compact trie‑based lookup when `encodeAllNamed` is true.
+ * - Supports a cumulative replacement limit (`maxReplacements`) that persists
+ *   across multiple `encode()` calls until `reset()` is called.
+ *
+ * @example
+ * const encoder = new EntityEncoder({ encodeXmlSafe: true, encodeAllNamed: true });
+ * encoder.encode('<foo>');   // "&lt;foo&gt;"
+ * encoder.encode('© 2025');  // "&copy; 2025"
+ *
+ * // With limit
+ * const limited = new EntityEncoder({ maxReplacements: 2 });
+ * limited.encode('<>&');     // "&lt;&gt;&"  (third replacement omitted)
+ * limited.reset();           // reset counter
+ */
+export class EntityEncoder {
+  constructor(options?: EntityEncoderOptions);
+
+  /**
+   * Encode a string by replacing XML‑unsafe characters and (optionally)
+   * non‑ASCII characters with named entities.
+   *
+   * If `maxReplacements` is set and the cumulative limit has been reached,
+   * the input string is returned unchanged.
+   *
+   * @returns Encoded string (may be identical to input if no replacements needed
+   *          or the limit has been exhausted).
+   */
+  encode(str: string): string;
+
+  /**
+   * Reset the internal replacement counter.
+   * Does **not** change `encodeXmlSafe`, `encodeAllNamed`, or `maxReplacements`.
+   */
+  reset(): void;
+}
 
 // ---------------------------------------------------------------------------
-// Constructor options
+// Constructor options for EntityDecoder (existing)
 // ---------------------------------------------------------------------------
 
 /**
  * Controls which entity categories count toward the expansion limits.
  *
- * - `'external'` — only untrusted / injected entities (default, safest)
- * - `'all'`      — shorthand for all categories
- * - `string[]`   — any combination of `'external'`, `'system'`, `'default'`
+ * - `'external'` — only untrusted / injected entities (default)
+ * - `'base'`     — only built‑in XML entities + user‑supplied `namedEntities`
+ * - `'all'`      — all entities regardless of tier
+ * - `string[]`   — explicit combination, e.g. `['external', 'base']`
  */
-export type ApplyLimitsTo = 'external' | 'all' | Array<'external' | 'system' | 'default'>;
+export type ApplyLimitsTo = 'external' | 'base' | 'all' | Array<'external' | 'base'>;
 
-/**
- * Options accepted by the `EntityReplacer` constructor.
- */
-export interface EntityReplacerOptions {
+export interface EntityDecoderOptions {
   /**
-   * Built-in XML entities: `&lt;` `&gt;` `&quot;` `&apos;`
+   * Extra named entities merged into the **base map** (trusted, counts as `'base'` tier).
+   * These are combined with the built‑in XML entities (`lt`, `gt`, `quot`, `apos`).
+   * Values containing `&` are silently skipped to prevent recursive expansion.
    *
-   * - `true`    — use built-in table (default)
-   * - `false`   — disable
-   * - `object`  — use a custom table instead of the built-in set
-   * @default true
+   * @default null
    */
-  default?: boolean | EntityTable | null;
+  namedEntities?: Record<string, string | { regex: RegExp; val: string | EntityValFn }> | null;
 
   /**
-   * `&amp;` → `&` final pass (always processed last to prevent double-expansion).
-   * @default true
-   */
-  amp?: boolean | null;
-
-  /**
-   * Named entity groups (system-level, trusted).
-   *
-   * - `false`   — disabled (default)
-   * - `true`    — enables `COMMON_HTML` built-in group
-   * - `object`  — use the supplied table (compose freely with exported groups)
-   *
-   * @example
-   * import { COMMON_HTML, CURRENCY_ENTITIES } from '@nodable/entities';
-   * new EntityReplacer({ system: { ...COMMON_HTML, ...CURRENCY_ENTITIES } });
-   *
-   * @default false
-   */
-  system?: boolean | EntityTable | null;
-
-  /**
-   * Maximum number of entity references expanded per document.
+   * Maximum number of entity references expanded **per document**.
    * `0` means unlimited.
    * @default 0
    */
   maxTotalExpansions?: number;
 
   /**
-   * Maximum number of characters *added* by entity expansion per document.
+   * Maximum number of characters **added** by entity expansion per document.
    * `0` means unlimited.
    * @default 0
    */
   maxExpandedLength?: number;
 
   /**
-   * Which entity categories count toward the expansion limits.
+   * Which entity tiers count toward the expansion limits.
+   *
+   * - `'external'` (default) – only input/runtime + persistent external entities
+   * - `'base'`               – only built‑in XML + `namedEntities`
+   * - `'all'`                – every entity regardless of tier
+   * - `string[]`             – explicit combination, e.g. `['external', 'base']`
+   *
    * @default 'external'
    */
   applyLimitsTo?: ApplyLimitsTo;
 
   /**
-   * Hook called once on the fully resolved string (after all categories).
+   * Hook called once on the fully decoded string (after all replacements).
    *
    * - Receives `(resolved, original)` and **must return a string**.
    * - To reject expansion, return `original`.
@@ -98,93 +140,49 @@ export interface EntityReplacerOptions {
    *   /<[a-z]/i.test(resolved) ? original : resolved
    */
   postCheck?: ((resolved: string, original: string) => string) | null;
+
+  /**
+   * Whether numeric character references (`&#NNN;`, `&#xHH;`) are allowed.
+   * @default true
+   */
+  numericAllowed?: boolean;
 }
 
 // ---------------------------------------------------------------------------
-// EntityReplacer class
+// EntityDecoder class (default export)
 // ---------------------------------------------------------------------------
 
 /**
- * Standalone, zero-dependency XML/HTML entity replacer.
+ * Single‑pass, zero‑regex entity decoder for XML/HTML content.
  *
- * ## Entity categories and replacement order
+ * ## Entity lookup priority (highest → lowest)
+ * 1. **input / runtime** – injected via `addInputEntities()` (DOCTYPE per document)
+ * 2. **persistent external** – set via `setExternalEntities()` / `addExternalEntity()`
+ * 3. **base map** – built‑in XML entities + user‑supplied `namedEntities`
  *
- * Entities are processed in this fixed order per `replace()` call:
- *   1. **persistent external** — set via `setExternalEntities()` / `addExternalEntity()`
- *   2. **input / runtime**    — injected via `addInputEntities()` (DOCTYPE per-document)
- *   3. **system**             — named entity groups (e.g. `COMMON_HTML`)
- *   4. **default**            — built-in XML entities (`lt`, `gt`, `apos`, `quot`)
- *   5. **amp**                — `&amp;` → `&` (always last)
- *   6. **postCheck**          — optional hook on the fully resolved string
+ * Numeric references (`&#NNN;`, `&#xHH;`) are resolved directly and count as the `'base'` tier.
  *
- * ## Lifecycle with `@nodable/flexible-xml-parser`
+ * @example
+ * const decoder = new EntityDecoder({
+ *   namedEntities: COMMON_HTML,
+ *   maxTotalExpansions: 100
+ * });
+ * decoder.setExternalEntities({ brand: 'Acme' });
  *
- * Construct once, then let the builder factory drive the lifecycle:
+ * decoder.addInputEntities({ version: '1.0' });
+ * decoder.decode('&brand; v&version; &lt;'); // 'Acme v1.0 <'
  *
- * ```ts
- * const replacer = new EntityReplacer({ default: true, system: COMMON_HTML });
- * replacer.setExternalEntities({ brand: 'Acme' }); // persistent — survives all docs
- *
- * // Builder factory calls getInstance() when creating a new builder instance:
- * const instance = replacer.getInstance();
- *
- * // Builder calls addInputEntities() if the document has a DOCTYPE block:
- * instance.addInputEntities(doctypeEntities);
- *
- * // Builder calls replace() (indirectly via ValueParser) for each text node:
- * instance.replace('&brand; v&version; &lt;'); // 'Acme v1.0 <'
- * ```
+ * decoder.reset(); // clears input entities + counters, keeps external entities
  */
-export default class EntityReplacer {
-  constructor(options?: EntityReplacerOptions);
+export default class EntityDecoder {
+  constructor(options?: EntityDecoderOptions);
 
-  // -------------------------------------------------------------------------
-  // Persistent external entities (survive across documents)
-  // -------------------------------------------------------------------------
-
-  /**
-   * Replace the full set of persistent external entities.
-   *
-   * These entities survive across all documents — they are **not** wiped by
-   * `getInstance()`. Use them for caller-supplied entities that are fixed at
-   * configuration time (e.g. brand names, product codes).
-   *
-   * Calling this a second time replaces the previous persistent entity map.
-   *
-   * Values containing `&` are silently skipped to prevent recursive expansion.
-   *
-   * @param map  Entity name → replacement string, or pre-built `{ regex, val }` object.
-   */
   setExternalEntities(
     map: Record<string, string | { regex: RegExp; val: string | EntityValFn }>
   ): void;
 
-  /**
-   * Append a single persistent external entity without disturbing the rest.
-   *
-   * @param key    Bare entity name without `&` / `;` — e.g. `'copy'`
-   * @param value  Replacement string — must not contain `&`
-   * @throws if `key` contains regex-special characters
-   */
   addExternalEntity(key: string, value: string): void;
 
-  // -------------------------------------------------------------------------
-  // Input / runtime entities (per document, cleared by getInstance)
-  // -------------------------------------------------------------------------
-
-  /**
-   * Inject DOCTYPE (input/runtime) entities for the **current document only**.
-   *
-   * These are stored separately from persistent entities. They are wiped on
-   * the next `getInstance()` call so they never leak into subsequent documents.
-   *
-   * Also resets the per-document expansion counters.
-   *
-   * Accepts both plain string values and `{ regx, val }` / `{ regex, val }`
-   * objects as produced by `DocTypeReader`.
-   *
-   * @param map  Raw entity map from the DOCTYPE reader.
-   */
   addInputEntities(
     map: Record<
       string,
@@ -194,113 +192,28 @@ export default class EntityReplacer {
     >
   ): void;
 
-  // -------------------------------------------------------------------------
-  // Builder factory integration
-  // -------------------------------------------------------------------------
-
-  /**
-   * Reset all per-document state and return `this`.
-   *
-   * Clears:
-   * - input / runtime entities (DOCTYPE)
-   * - `_totalExpansions` counter
-   * - `_expandedLength` counter
-   *
-   * Does **not** clear persistent external entities set via
-   * `setExternalEntities()` / `addExternalEntity()`.
-   *
-   * The builder factory calls this when creating a new builder instance,
-   * ensuring each document starts clean regardless of whether it has a DOCTYPE.
-   *
-   */
   reset(): this;
 
-  // -------------------------------------------------------------------------
-  // Primary API
-  // -------------------------------------------------------------------------
-
-  /**
-   * Replace all entity references in `str`.
-   * Returns `str` unchanged if it contains no `&` character (fast path).
-   */
-  replace(str: string): string;
-
-  /**
-   * wrapper on replace()
-   */
-  parse(str: string): string;
+  decode(str: string): string;
 }
 
 // ---------------------------------------------------------------------------
-// EntitiesValueParser
+// Named entity group exports (for use with `namedEntities` option)
 // ---------------------------------------------------------------------------
 
-
-
-/**
- * Raw DOCTYPE entity map shape as produced by `DocTypeReader`.
- * Values are either plain strings or `{ regx, val }` objects
- * (note: `regx`, not `regex` — matches the reader's output field name).
- */
-export type DocTypeEntityMap = Record<
-  string,
-  | string
-  | { regx: RegExp; val: string | EntityValFn }
-  | { regex: RegExp; val: string | EntityValFn }
->;
-
-/**
- * ValueParser context object passed by `@nodable/flexible-xml-parser`.
- * All fields are optional; `parse()` accepts but ignores this argument.
- */
-export interface ValueParserContext {
-  elementName?: string;
-  elementValue?: string;
-  elementType?: string;
-  matcher?: unknown;
-  isLeafNode?: boolean;
-}
-
-// ---------------------------------------------------------------------------
-// Named entity group exports
-// ---------------------------------------------------------------------------
-
-/**
- * ~20 most commonly needed HTML named entities.
- * Includes: `&nbsp;` `&copy;` `&reg;` `&trade;` `&mdash;` `&ndash;`
- * `&hellip;` `&laquo;` `&raquo;` `&lsquo;` `&rsquo;` `&ldquo;` `&rdquo;`
- * `&bull;` `&para;` `&sect;` `&deg;` `&frac12;` `&frac14;` `&frac34;`
- */
-export const COMMON_HTML: EntityTable;
-
-/**
- * Currency symbol entities.
- * Includes: `&cent;` `&pound;` `&yen;` `&euro;` `&inr;` `&curren;` `&fnof;`
- */
-export const CURRENCY_ENTITIES: EntityTable;
-
-/**
- * Mathematical operator entities.
- * Includes: `&times;` `&divide;` `&plusmn;` `&minus;` `&sup2;` `&sup3;`
- * `&permil;` `&infin;` `&sum;` `&prod;` `&radic;` `&ne;` `&le;` `&ge;`
- */
-export const MATH_ENTITIES: EntityTable;
-
-/**
- * Arrow entities.
- * Includes: `&larr;` `&uarr;` `&rarr;` `&darr;` `&harr;`
- * and their double-stroke variants `&lArr;` `&uArr;` `&rArr;` `&dArr;` `&hArr;`
- */
-export const ARROW_ENTITIES: EntityTable;
-
-/**
- * Numeric character reference entities.
- * Handles any valid decimal `&#NNN;` and hex `&#xHH;` code point reference.
- */
-export const NUMERIC_ENTITIES: EntityTable;
-
-/** The built-in XML entity table (`lt`, `gt`, `apos`, `quot`). */
-export const DEFAULT_XML_ENTITIES: EntityTable;
-
-/** The `&amp;` entity entry used in the final expansion pass. */
-export const AMP_ENTITY: EntityEntry;
+export const COMMON_HTML: Record<string, string>;
+export const ALL_ENTITIES: Record<string, string>;
+export const XML: Record<string, string>;
+export const BASIC_LATIN: Record<string, string>;
+export const LATIN_ACCENTS: Record<string, string>;
+export const LATIN_EXTENDED: Record<string, string>;
+export const GREEK: Record<string, string>;
+export const CYRILLIC: Record<string, string>;
+export const MATH: Record<string, string>;
+export const MATH_ADVANCED: Record<string, string>;
+export const ARROWS: Record<string, string>;
+export const SHAPES: Record<string, string>;
+export const PUNCTUATION: Record<string, string>;
+export const CURRENCY: Record<string, string>;
+export const FRACTIONS: Record<string, string>;
+export const MISC_SYMBOLS: Record<string, string>;
