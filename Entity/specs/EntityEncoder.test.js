@@ -154,11 +154,11 @@ describe('mixed content', () => {
 // 7. maxReplacements option
 // ---------------------------------------------------------------------------
 describe('maxReplacements', () => {
-  it.only('stops encoding after maxReplacements is reached', () => {
+  test('stops encoding after maxReplacements is reached', () => {
     const enc = make({ encodeXmlSafe: true, maxReplacements: 2 });
     // 3 unsafe chars — only the first 2 should be encoded
     const result = enc.encode('< > &');
-    console.log(result)
+    // console.log(result)
     expect(result).toBe("&lt; &gt; &");
   });
 
@@ -169,7 +169,7 @@ describe('maxReplacements', () => {
     expect((result.match(/&lt;/g) || []).length).toBe(1000);
   });
 
-  it.only('replacementsCount is reset at the start of each encode call', () => {
+  test('replacementsCount is reset at the start of each encode call', () => {
     const enc = make({ encodeXmlSafe: true, maxReplacements: 2 });
     enc.encode('< > &');  // exhaust the limit
     const result = enc.encode('< > &');  // fresh call — limit resets

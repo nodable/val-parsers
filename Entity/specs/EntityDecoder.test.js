@@ -249,7 +249,7 @@ describe('input / runtime entities (addInputEntities)', () => {
   });
 
   test('addInputEntities resets counters', () => {
-    const r = make({ maxTotalExpansions: 5, applyLimitsTo: 'external' });
+    const r = make({ limit: { maxTotalExpansions: 5, applyLimitsTo: 'external' } });
     r.addInputEntities({ x: 'X' });
     r.decode('&x;&x;&x;'); // 3 expansions
     r.addInputEntities({ x: 'X' }); // resets counter
@@ -297,52 +297,51 @@ describe('entity priority order', () => {
 // ---------------------------------------------------------------------------
 describe('maxTotalExpansions', () => {
   test('throws when limit exceeded (external tier)', () => {
-    const r = make({ maxTotalExpansions: 3, applyLimitsTo: 'external' });
+    const r = make({ limit: { maxTotalExpansions: 3, applyLimitsTo: 'external' } });
     r.addInputEntities({ x: 'X' });
     expect(() => r.decode('&x;&x;&x;&x;')).toThrow(/expansion count limit/);
   });
 
   test('does not throw when exactly at limit', () => {
-    const r = make({ maxTotalExpansions: 3, applyLimitsTo: 'external' });
+    const r = make({ limit: { maxTotalExpansions: 3, applyLimitsTo: 'external' } });
     r.addInputEntities({ x: 'X' });
     expect(() => r.decode('&x;&x;&x;')).not.toThrow();
   });
 
   test('0 = unlimited', () => {
-    const r = make({ maxTotalExpansions: 0, applyLimitsTo: 'external' });
+    const r = make({ limit: { maxTotalExpansions: 0, applyLimitsTo: 'external' } });
     r.addInputEntities({ x: 'X' });
     const big = '&x;'.repeat(10_000);
     expect(() => r.decode(big)).not.toThrow();
   });
 
   test('Infinity = unlimited', () => {
-    const r = make({ maxTotalExpansions: Infinity, applyLimitsTo: 'external' });
+    const r = make({ limit: { maxTotalExpansions: Infinity, applyLimitsTo: 'external' } });
     r.addInputEntities({ x: 'X' });
     const big = '&x;'.repeat(10_000);
     expect(() => r.decode(big)).not.toThrow();
   });
 
   test('base entities not tracked when applyLimitsTo: external', () => {
-    const r = make({ maxTotalExpansions: 1, applyLimitsTo: 'external' });
+    const r = make({ limit: { maxTotalExpansions: 1, applyLimitsTo: 'external' } });
     // Many base-tier expansions — should NOT throw
     expect(() => r.decode('&lt;&gt;&lt;&gt;&lt;&gt;')).not.toThrow();
   });
 
   test('base entities tracked when applyLimitsTo: base', () => {
-    const r = make({ maxTotalExpansions: 2, applyLimitsTo: 'base' });
+    const r = make({ limit: { maxTotalExpansions: 2, applyLimitsTo: 'base' } });
     expect(() => r.decode('&lt;&gt;&lt;')).toThrow(/expansion count limit/);
   });
 
   test('base entities tracked when applyLimitsTo: all', () => {
-    const r = make({ maxTotalExpansions: 2, applyLimitsTo: 'all' });
+    const r = make({ limit: { maxTotalExpansions: 2, applyLimitsTo: 'all' } });
     expect(() => r.decode('&lt;&gt;&lt;')).toThrow(/expansion count limit/);
   });
 
   test('namedEntities group tracked when applyLimitsTo: base', () => {
     const r = make({
       namedEntities: COMMON_HTML,
-      maxTotalExpansions: 2,
-      applyLimitsTo: 'base',
+      limit: { maxTotalExpansions: 2, applyLimitsTo: 'base' },
     });
     expect(() => r.decode('&copy;&copy;&copy;')).toThrow(/expansion count limit/);
   });
@@ -351,21 +350,21 @@ describe('maxTotalExpansions', () => {
 describe('maxExpandedLength', () => {
   test('throws when expanded length exceeded', () => {
     // &x; (3 chars) → 'XXXXXXXXXX' (10 chars) = net +7; limit is 5
-    const r = make({ maxExpandedLength: 5, applyLimitsTo: 'external' });
+    const r = make({ limit: { maxExpandedLength: 5, applyLimitsTo: 'external' } });
     r.addInputEntities({ x: 'XXXXXXXXXX' });
     expect(() => r.decode('&x;')).toThrow(/length limit/);
   });
 
   test('does not throw when exactly at limit', () => {
     // &x; (3 chars) → 'XXXXXXXX' (8 chars) = net +5; limit is 5
-    const r = make({ maxExpandedLength: 5, applyLimitsTo: 'external' });
+    const r = make({ limit: { maxExpandedLength: 5, applyLimitsTo: 'external' } });
     r.addInputEntities({ x: 'XXXXXXXX' });
     expect(() => r.decode('&x;')).not.toThrow();
   });
 
   test('cumulative across multiple replacements', () => {
     // &x; → 'XXXXX' = net +2 per expansion; two expansions = +4 total; limit 10
-    const r = make({ maxExpandedLength: 10, applyLimitsTo: 'external' });
+    const r = make({ limit: { maxExpandedLength: 10, applyLimitsTo: 'external' } });
     r.addInputEntities({ x: 'XXXXX' });
     expect(() => r.decode('&x;&x;')).not.toThrow();
   });
@@ -375,8 +374,7 @@ describe('applyLimitsTo: array', () => {
   test('limits both external and base when both specified', () => {
     const r = make({
       namedEntities: COMMON_HTML,
-      maxTotalExpansions: 1,
-      applyLimitsTo: ['external', 'base'],
+      limit: { maxTotalExpansions: 1, applyLimitsTo: ['external', 'base'] },
     });
     r.addInputEntities({ x: 'X' });
     // 1 external + 1 base = 2 > limit of 1
@@ -434,7 +432,7 @@ describe('reset()', () => {
   });
 
   test('resets totalExpansions counter', () => {
-    const r = make({ maxTotalExpansions: 2, applyLimitsTo: 'external' });
+    const r = make({ limit: { maxTotalExpansions: 2, applyLimitsTo: 'external' } });
     r.addInputEntities({ x: 'X' });
     r.decode('&x;&x;'); // exhaust counter
     r.reset();

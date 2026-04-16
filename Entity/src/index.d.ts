@@ -92,16 +92,7 @@ export class EntityEncoder {
  */
 export type ApplyLimitsTo = 'external' | 'base' | 'all' | Array<'external' | 'base'>;
 
-export interface EntityDecoderOptions {
-  /**
-   * Extra named entities merged into the **base map** (trusted, counts as `'base'` tier).
-   * These are combined with the built‑in XML entities (`lt`, `gt`, `quot`, `apos`).
-   * Values containing `&` are silently skipped to prevent recursive expansion.
-   *
-   * @default null
-   */
-  namedEntities?: Record<string, string | { regex: RegExp; val: string | EntityValFn }> | null;
-
+export interface EntityDecoderLimitOptions {
   /**
    * Maximum number of entity references expanded **per document**.
    * `0` means unlimited.
@@ -127,6 +118,38 @@ export interface EntityDecoderOptions {
    * @default 'external'
    */
   applyLimitsTo?: ApplyLimitsTo;
+}
+
+export interface EntityDecoderNCROptions {
+  /**
+   * XML version used for NCR classification.
+   * @default 1.0
+   */
+  xmlVersion?: 1.0 | 1.1;
+
+  /**
+   * Base action for all numeric references.
+   * @default 'allow'
+   */
+  onNCR?: 'allow' | 'leave' | 'remove' | 'throw';
+
+  /**
+   * Action for null NCR (U+0000).
+   * @default 'remove'
+   */
+  nullNCR?: 'remove' | 'throw';
+}
+
+export interface EntityDecoderOptions {
+  /**
+   * Extra named entities merged into the **base map** (trusted, counts as `'base'` tier).
+   * These are combined with the built‑in XML entities (`lt`, `gt`, `quot`, `apos`).
+   * Values containing `&` are silently skipped to prevent recursive expansion.
+   *
+   * @default null
+   */
+  namedEntities?: Record<string, string | { regex: RegExp; val: string | EntityValFn }> | null;
+
 
   /**
    * Hook called once on the fully decoded string (after all replacements).
@@ -158,6 +181,16 @@ export interface EntityDecoderOptions {
    * @default []
    */
   remove?: string[];
+
+  /**
+   * Security limits for entity expansion.
+   */
+  limit?: EntityDecoderLimitOptions;
+
+  /**
+   * Numeric Character Reference (NCR) policy.
+   */
+  ncr?: EntityDecoderNCROptions;
 }
 
 // ---------------------------------------------------------------------------
