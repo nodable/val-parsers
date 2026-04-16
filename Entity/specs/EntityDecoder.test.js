@@ -522,3 +522,149 @@ describe('exports', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// 11. Remove and Leave options
+// ---------------------------------------------------------------------------
+describe('remove and leave options', () => {
+  test('remove: removes specified entities', () => {
+    const r = make({ remove: ['nbsp', 'copy'] });
+    expect(r.decode('a&nbsp;b&copy;c')).toBe('abc');
+  });
+
+  test('leave: leaves specified entities as literals', () => {
+    const r = make({ leave: ['nbsp', 'copy'] });
+    expect(r.decode('a&nbsp;b&copy;c')).toBe('a&nbsp;b&copy;c');
+  });
+
+  test('remove takes precedence over leave', () => {
+    const r = make({ remove: ['nbsp'], leave: ['nbsp'] });
+    expect(r.decode('a&nbsp;b')).toBe('ab');
+  });
+
+  test('remove applies to base entities', () => {
+    const r = make({ remove: ['lt'] });
+    expect(r.decode('a&lt;b')).toBe('ab');
+  });
+
+  test('leave applies to base entities', () => {
+    const r = make({ leave: ['lt'] });
+    expect(r.decode('a&lt;b')).toBe('a&lt;b');
+  });
+
+  test('remove applies to named entities', () => {
+    const r = make({ remove: ['copy'], namedEntities: COMMON_HTML });
+    expect(r.decode('a&copy;b')).toBe('ab');
+  });
+
+  test('leave applies to named entities', () => {
+    const r = make({ leave: ['copy'], namedEntities: COMMON_HTML });
+    expect(r.decode('a&copy;b')).toBe('a&copy;b');
+  });
+
+  test('remove applies to numeric entities', () => {
+    const r = make({ remove: ['#160'] });
+    expect(r.decode('a&#160;b')).toBe('ab');
+  });
+
+  test('leave applies to numeric entities', () => {
+    const r = make({ leave: ['#160'] });
+    expect(r.decode('a&#160;b')).toBe('a&#160;b');
+  });
+
+  test('remove applies to external entities', () => {
+    const r = make({ remove: ['foo'], namedEntities: { foo: 'bar' } });
+    expect(r.decode('a&foo;b')).toBe('ab');
+  });
+
+  test('leave applies to external entities', () => {
+    const r = make({ leave: ['foo'], namedEntities: { foo: 'bar' } });
+    expect(r.decode('a&foo;b')).toBe('a&foo;b');
+  });
+
+  test('remove applies to input entities', () => {
+    const r = make({ remove: ['foo'] });
+    r.addInputEntities({ foo: 'bar' });
+    expect(r.decode('a&foo;b')).toBe('ab');
+  });
+
+  test('leave applies to input entities', () => {
+    const r = make({ leave: ['foo'] });
+    r.addInputEntities({ foo: 'bar' });
+    expect(r.decode('a&foo;b')).toBe('a&foo;b');
+  });
+
+  test('remove applies to unknown entities (replaces with empty string)', () => {
+    const r = make({ remove: ['unknown'] });
+    expect(r.decode('a&unknown;b')).toBe('ab');
+  });
+
+  test('leave applies to unknown entities (leaves as literal)', () => {
+    const r = make({ leave: ['unknown'] });
+    expect(r.decode('a&unknown;b')).toBe('a&unknown;b');
+  });
+
+  test('remove and leave can be combined', () => {
+    const r = make({ remove: ['nbsp'], leave: ['copy'] });
+    expect(r.decode('a&nbsp;b&copy;c')).toBe('ab&copy;c');
+  });
+
+  test('remove and leave arrays can be empty', () => {
+    const r = make({ remove: [], leave: [] });
+    expect(r.decode('a&nbsp;b&copy;c')).toBe('a&nbsp;b&copy;c');
+  });
+
+  test('remove and leave arrays can be null/undefined (treated as empty)', () => {
+    const r1 = make({ remove: null, leave: null });
+    expect(r1.decode('a&nbsp;b')).toBe('a&nbsp;b');
+
+    const r2 = make({ remove: undefined, leave: undefined });
+    expect(r2.decode('a&nbsp;b')).toBe('a&nbsp;b');
+  });
+
+  test('remove and leave arrays can contain duplicates (handled by Set)', () => {
+    const r = make({ remove: ['nbsp', 'nbsp'], leave: ['copy', 'copy'] });
+    expect(r.decode('a&nbsp;b&copy;c')).toBe('ab&copy;c');
+  });
+
+  test('remove and leave arrays can contain non-string values (ignored)', () => {
+    const r = make({ remove: ['nbsp', 123, null, undefined], leave: ['copy', 456, false] });
+    expect(r.decode('a&nbsp;b&copy;c')).toBe('ab&copy;c');
+  });
+
+  test('remove and leave arrays can contain mixed entity types', () => {
+    const r = make({ remove: ['nbsp', '#160'], leave: ['copy', '&copy;'] });
+    expect(r.decode('a&nbsp;b&#160;c&copy;d&amp;e')).toBe('abc&copy;d&e');
+  });
+
+  test('remove and leave arrays can contain entity names with special chars', () => {
+    const r = make({ remove: ['my.entity'], leave: ['another.entity'] });
+    r.setExternalEntities({ 'my.entity': 'REMOVE', 'another.entity': 'LEAVE' });
+    expect(r.decode('a&my.entity;b&another.entity;c')).toBe('ab&another.entity;c');
+  });
+
+  test('remove and leave arrays can contain numeric entity strings', () => {
+    const r = make({ remove: ['#160'], leave: ['#169'] });
+    expect(r.decode('a&#160;b&#169;c')).toBe('ab&#169;c');
+  });
+
+  test('remove and leave arrays can contain hex numeric entity strings', () => {
+    const r = make({ remove: ['#x20'], leave: ['#x26'] });
+    expect(r.decode('a&#x20;b&#x26;c')).toBe('ab&#x26;c');
+  });
+
+  test('remove and leave arrays can contain mixed numeric formats', () => {
+    const r = make({ remove: ['#160', '#x20'], leave: ['#169', '#x26'] });
+    expect(r.decode('a&#160;b&#x20;c&#169;d&#x26;e')).toBe('abc&#169;d&#x26;e');
+  });
+
+  test('remove and leave arrays can contain mixed entity types and formats', () => {
+    const r = make({
+      remove: ['nbsp', '#160', '#x20', 'unknown'],
+      leave: ['copy', '#169', '#x26', 'another.entity'],
+      namedEntities: { copy: '©', another: 'ANOTHER' },
+    });
+    expect(r.decode('a&nbsp;b&#160;c&#x20;d&copy;e&#169;f&#x26;g&another.entity;&another;h&unknown;i'))
+      .toBe('abcd&copy;e&#169;f&#x26;g&another.entity;ANOTHERhi');
+  });
+});

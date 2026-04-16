@@ -126,6 +126,8 @@ export default class EntityDecoder {
    *   - 'all'                — every entity regardless of tier
    *   - string[]             — explicit combination, e.g. ['external', 'base']
    * @param {((resolved: string, original: string) => string)|null} [options.postCheck=null]
+   * @param {string[]} [options.remove=[]] — entity names (e.g. ['nbsp', '#13']) to delete (replace with empty string)
+   * @param {string[]} [options.leave=[]]  — entity names to keep as literal (unchanged in output)
    */
   constructor(options = {}) {
     this._maxTotalExpansions = options.maxTotalExpansions || 0;
@@ -148,6 +150,12 @@ export default class EntityDecoder {
     // Per-document counters
     this._totalExpansions = 0;
     this._expandedLength = 0;
+
+    // --- New: remove / leave sets ---
+    /** @type {Set<string>} */
+    this._removeSet = new Set(options.remove && Array.isArray(options.remove) ? options.remove : []);
+    /** @type {Set<string>} */
+    this._leaveSet = new Set(options.leave && Array.isArray(options.leave) ? options.leave : []);
   }
 
   // -------------------------------------------------------------------------
@@ -259,7 +267,19 @@ export default class EntityDecoder {
       let replacement;
       let tier; // which limit tier this entity belongs to
 
-      if (token.charCodeAt(0) === 35 /* '#' */ && this._numericAllowed) {
+      if (this._removeSet.has(token)) {
+        // Remove entity: replace with empty string
+        replacement = '';
+        // If entity was unknown (replacement undefined), we still need a tier for limits.
+        // Treat as external tier because it's user-directed removal of an unknown reference.
+        if (tier === undefined) {
+          tier = LIMIT_TIER_EXTERNAL;
+        }
+      } else if (this._leaveSet.has(token)) {
+        // Do not replace — keep original &token; as literal
+        i++;
+        continue;
+      } else if (token.charCodeAt(0) === 35 /* '#' */ && this._numericAllowed) {
         // ---- Numeric reference — base tier ----
         replacement = this._resolveNumeric(token);
         tier = LIMIT_TIER_BASE;

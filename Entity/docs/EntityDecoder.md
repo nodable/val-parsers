@@ -28,6 +28,8 @@ dec.decode('Hello &copy; 2024 &amp; &lt;stuff&gt;');
 | `applyLimitsTo` | `'external'` \| `'base'` \| `'all'` \| `string[]` | `'external'` | Which entity tiers count against the limits |
 | `postCheck` | `(resolved, original) => string` | identity | Hook called with the final decoded string — return `original` to reject a decode |
 | `numericAllowed` | `boolean` | `true` | Allow numeric entities decoding |
+| `remove` | `string[]` | `[]` | Entity names to remove (replace with empty string) |
+| `leave` | `string[]` | `[]` | Entity names to keep as literal (unchanged) |
 
 ## API
 

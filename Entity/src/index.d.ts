@@ -146,6 +146,18 @@ export interface EntityDecoderOptions {
    * @default true
    */
   numericAllowed?: boolean;
+
+  /**
+   * Array of entity names or numeric references to leave unexpanded.
+   * @default []
+   */
+  leave?: string[];
+
+  /**
+   * Array of entity names or numeric references to remove.
+   * @default []
+   */
+  remove?: string[];
 }
 
 // ---------------------------------------------------------------------------
