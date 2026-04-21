@@ -194,7 +194,7 @@ export interface EntityDecoderOptions {
 }
 
 // ---------------------------------------------------------------------------
-// EntityDecoder class (default export)
+// EntityDecoder class
 // ---------------------------------------------------------------------------
 
 /**
@@ -219,7 +219,7 @@ export interface EntityDecoderOptions {
  *
  * decoder.reset(); // clears input entities + counters, keeps external entities
  */
-export default class EntityDecoder {
+export class EntityDecoder {
   constructor(options?: EntityDecoderOptions);
 
   setExternalEntities(
