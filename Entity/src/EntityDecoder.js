@@ -18,9 +18,7 @@ const SPECIAL_CHARS = new Set('!?\\\\/[]$%{}^&*()<>|+');
  * @throws {Error} on invalid characters
  */
 function validateEntityName(name) {
-  if (name[0] === '#') {
-    throw new Error(`[EntityReplacer] Invalid character '#' in entity name: "${name}"`);
-  }
+  if (name[0] === '#') return name;  // numeric character reference (e.g. #xD, #13)
   for (const ch of name) {
     if (SPECIAL_CHARS.has(ch)) {
       throw new Error(`[EntityReplacer] Invalid character '${ch}' in entity name: "${name}"`);
