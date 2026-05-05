@@ -192,9 +192,10 @@ describe('persistent external entities (setExternalEntities)', () => {
     r.setExternalEntities({ foo: 'bar' });
     expect(r.decode('&foo;')).toBe('bar');
   });
-  it('numeric persistent entity', () => {
+  it('numeric persistent entity (#-prefixed) should be accepted', () => {
     const r = make({});
-    expect(() => r.setExternalEntities({ '#xD': 'bar' })).toThrow();
+    r.setExternalEntities({ '#xD': '\r' });
+    expect(r.decode('&#xD;')).toBe('\r');
   });
 
   test('multiple persistent entities', () => {

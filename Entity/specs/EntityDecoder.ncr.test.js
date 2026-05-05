@@ -254,6 +254,28 @@ describe('EntityDecoder NCR Support', () => {
     });
   });
 
+  describe('addExternalEntity with #-prefixed names (numeric character references)', () => {
+    it('should allow registering #xD as an external entity without throwing', () => {
+      const dec = new EntityDecoder();
+      // AWS SDK registers &#xD; (carriage return) via addExternalEntity
+      dec.addExternalEntity('#xD', '\r');
+      // The entity should be registered and decodable
+      assert.equal(dec.decode('&#xD;'), '\r');
+    });
+
+    it('should allow registering decimal numeric references like #13', () => {
+      const dec = new EntityDecoder();
+      dec.addExternalEntity('#13', '\r');
+      assert.equal(dec.decode('&#13;'), '\r');
+    });
+
+    it('should still reject truly invalid entity names with special chars', () => {
+      const dec = new EntityDecoder();
+      assert.throws(() => dec.addExternalEntity('bad!name', 'x'), /Invalid character/);
+      assert.throws(() => dec.addExternalEntity('bad*name', 'x'), /Invalid character/);
+    });
+  });
+
   describe('Edge cases and combinations', () => {
     it('should handle NCRs adjacent to text without delimiters', () => {
       const dec = new EntityDecoder();
