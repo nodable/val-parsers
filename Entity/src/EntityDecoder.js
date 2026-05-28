@@ -293,7 +293,7 @@ export default class EntityDecoder {
   decode(str) {
     if (typeof str !== 'string' || str.length === 0) return str;
     //TODO: check if needed
-    //if (str.indexOf('&') === -1) return str; // fast path — no entities at all
+    if (str.indexOf('&') === -1) return str; // fast path — no entities at all
 
     const original = str;
     const chunks = [];
