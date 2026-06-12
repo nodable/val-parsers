@@ -113,6 +113,80 @@ Clears input entities and resets expansion counters. Call between documents. Doe
 dec.reset();
 ```
 
+## Entity registration hooks
+
+`EntityDecoder` exposes two hooks that let you inspect and gate every entity **at registration time** — before anything is stored internally and before any `decode()` call can reach it. No opinion is baked in: the decoder calls your hook and you decide.
+
+| Hook | Fires when |
+|---|---|
+| `onExternalEntity` | `setExternalEntities()` or `addExternalEntity()` |
+| `onInputEntity` | `addInputEntities()` |
+
+Each hook receives `(name, value)` and must return one of the three `ENTITY_ACTION` constants:
+
+| Constant | String | Effect |
+|---|---|---|
+| `ENTITY_ACTION.ALLOW` | `'allow'` | Register and expand normally |
+| `ENTITY_ACTION.BLOCK` | `'block'` | Silently skip — entity is never stored |
+| `ENTITY_ACTION.THROW` | `'throw'` | Abort registration with an `Error` |
+
+Use the constants instead of the raw strings to avoid typos.
+
+```js
+import EntityDecoder, { ENTITY_ACTION, ALL_ENTITIES } from '@nodable/entities';
+
+const dec = new EntityDecoder({
+  namedEntities: ALL_ENTITIES,
+
+  // Only allow external entities whose value is plain text
+  onExternalEntity: (name, value) => {
+    if (/<[a-z]/i.test(value)) return ENTITY_ACTION.BLOCK; // drop anything HTML-like
+    return ENTITY_ACTION.ALLOW;
+  },
+
+  // Reject all DOCTYPE / input entities outright
+  onInputEntity: (_name, _value) => ENTITY_ACTION.BLOCK,
+});
+
+dec.setExternalEntities({ brand: 'Acme', evil: '<script>alert(1)</script>' });
+dec.decode('&brand;');  // → 'Acme'
+dec.decode('&evil;');   // → '&evil;'  (blocked at registration, treated as unknown)
+```
+
+### Selective allow/block per name
+
+```js
+const ALLOWLIST = new Set(['brand', 'version']);
+
+const dec = new EntityDecoder({
+  onExternalEntity: (name) =>
+    ALLOWLIST.has(name) ? ENTITY_ACTION.ALLOW : ENTITY_ACTION.BLOCK,
+});
+```
+
+### Hard rejection with THROW
+
+```js
+const dec = new EntityDecoder({
+  onInputEntity: (name) => {
+    if (name === 'SYSTEM') throw ENTITY_ACTION.THROW; // via constant
+    return ENTITY_ACTION.ALLOW;
+  },
+});
+// Or let the decoder throw for you:
+const dec2 = new EntityDecoder({
+  onInputEntity: () => ENTITY_ACTION.THROW, // every input entity is forbidden
+});
+dec2.addInputEntities({ x: 'X' }); // → Error: Registration of input entity "&x;" was rejected by hook
+```
+
+### Notes
+
+- Hooks fire **once per entity at registration time**, not on every `decode()` call — no per-call overhead.
+- A `BLOCK`ed entity is simply never stored; at decode time it is treated as an unknown reference and left as-is (e.g. `&blocked;` stays `&blocked;`).
+- `onExternalEntity` and `onInputEntity` are completely independent: blocking input entities does not affect external ones, and vice versa.
+- Base-map entities (`namedEntities`, the built-in XML set) are never passed through hooks — hooks only apply to runtime-injected entities.
+
 ## Entity lookup priority
 
 1. Input / runtime entities (`addInputEntities`)

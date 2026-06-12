@@ -666,3 +666,223 @@ describe('remove and leave options', () => {
       .toBe('abcd&copy;e&#169;f&#x26;g&another.entity;ANOTHERhi');
   });
 });
+// ---------------------------------------------------------------------------
+// 12. onExternalEntity and onInputEntity hooks
+// ---------------------------------------------------------------------------
+
+import { ENTITY_ACTION } from '../src/EntityDecoder.js';
+
+describe('ENTITY_ACTION constants', () => {
+  test('exports ALLOW, BLOCK, THROW string values', () => {
+    expect(ENTITY_ACTION.ALLOW).toBe('allow');
+    expect(ENTITY_ACTION.BLOCK).toBe('block');
+    expect(ENTITY_ACTION.THROW).toBe('throw');
+  });
+
+  test('is frozen (immutable)', () => {
+    expect(Object.isFrozen(ENTITY_ACTION)).toBe(true);
+  });
+});
+
+describe('onExternalEntity hook — setExternalEntities', () => {
+  test('ALLOW: entity is registered and decoded normally', () => {
+    const r = make({ onExternalEntity: () => ENTITY_ACTION.ALLOW });
+    r.setExternalEntities({ brand: 'Acme' });
+    expect(r.decode('&brand;')).toBe('Acme');
+  });
+
+  test('BLOCK: entity is silently skipped — treated as unknown', () => {
+    const r = make({ onExternalEntity: () => ENTITY_ACTION.BLOCK });
+    r.setExternalEntities({ brand: 'Acme' });
+    expect(r.decode('&brand;')).toBe('&brand;');
+  });
+
+  test('THROW: throws with a descriptive message', () => {
+    const r = make({ onExternalEntity: () => ENTITY_ACTION.THROW });
+    expect(() => r.setExternalEntities({ brand: 'Acme' })).toThrow(/brand/);
+  });
+
+  test('hook receives correct name and value', () => {
+    const calls = [];
+    const r = make({
+      onExternalEntity: (name, value) => {
+        calls.push({ name, value });
+        return ENTITY_ACTION.ALLOW;
+      },
+    });
+    r.setExternalEntities({ foo: 'FOO', bar: 'BAR' });
+    expect(calls).toHaveLength(2);
+    expect(calls.find(c => c.name === 'foo')).toEqual({ name: 'foo', value: 'FOO' });
+    expect(calls.find(c => c.name === 'bar')).toEqual({ name: 'bar', value: 'BAR' });
+  });
+
+  test('hook can selectively allow/block individual entities', () => {
+    const r = make({
+      onExternalEntity: (name) =>
+        name === 'safe' ? ENTITY_ACTION.ALLOW : ENTITY_ACTION.BLOCK,
+    });
+    r.setExternalEntities({ safe: 'SAFE', unsafe: 'UNSAFE' });
+    expect(r.decode('&safe;')).toBe('SAFE');
+    expect(r.decode('&unsafe;')).toBe('&unsafe;');
+  });
+
+  test('no hook → all entities accepted (default behaviour unchanged)', () => {
+    const r = make({});
+    r.setExternalEntities({ brand: 'Acme' });
+    expect(r.decode('&brand;')).toBe('Acme');
+  });
+
+  test('null hook is treated as no hook', () => {
+    const r = make({ onExternalEntity: null });
+    r.setExternalEntities({ brand: 'Acme' });
+    expect(r.decode('&brand;')).toBe('Acme');
+  });
+});
+
+describe('onExternalEntity hook — addExternalEntity', () => {
+  test('ALLOW: entity is stored', () => {
+    const r = make({ onExternalEntity: () => ENTITY_ACTION.ALLOW });
+    r.addExternalEntity('x', 'X');
+    expect(r.decode('&x;')).toBe('X');
+  });
+
+  test('BLOCK: entity is silently skipped', () => {
+    const r = make({ onExternalEntity: () => ENTITY_ACTION.BLOCK });
+    r.addExternalEntity('x', 'X');
+    expect(r.decode('&x;')).toBe('&x;');
+  });
+
+  test('THROW: throws with entity name in message', () => {
+    const r = make({ onExternalEntity: () => ENTITY_ACTION.THROW });
+    expect(() => r.addExternalEntity('x', 'X')).toThrow(/x/);
+  });
+
+  test('hook receives correct name and value', () => {
+    let received;
+    const r = make({
+      onExternalEntity: (name, value) => {
+        received = { name, value };
+        return ENTITY_ACTION.ALLOW;
+      },
+    });
+    r.addExternalEntity('myEnt', 'hello');
+    expect(received).toEqual({ name: 'myEnt', value: 'hello' });
+  });
+
+  test('BLOCK on addExternalEntity does not affect already-stored entities', () => {
+    const allowed = new Set(['a']);
+    const r = make({
+      onExternalEntity: (name) =>
+        allowed.has(name) ? ENTITY_ACTION.ALLOW : ENTITY_ACTION.BLOCK,
+    });
+    r.addExternalEntity('a', 'AAA');
+    r.addExternalEntity('b', 'BBB'); // blocked
+    expect(r.decode('&a;')).toBe('AAA');
+    expect(r.decode('&b;')).toBe('&b;');
+  });
+});
+
+describe('onInputEntity hook — addInputEntities', () => {
+  test('ALLOW: entity is registered and decoded normally', () => {
+    const r = make({ onInputEntity: () => ENTITY_ACTION.ALLOW });
+    r.addInputEntities({ docEnt: 'VALUE' });
+    expect(r.decode('&docEnt;')).toBe('VALUE');
+  });
+
+  test('BLOCK: entity is silently skipped', () => {
+    const r = make({ onInputEntity: () => ENTITY_ACTION.BLOCK });
+    r.addInputEntities({ docEnt: 'VALUE' });
+    expect(r.decode('&docEnt;')).toBe('&docEnt;');
+  });
+
+  test('THROW: throws with entity name in message', () => {
+    const r = make({ onInputEntity: () => ENTITY_ACTION.THROW });
+    expect(() => r.addInputEntities({ docEnt: 'VALUE' })).toThrow(/docEnt/);
+  });
+
+  test('hook receives correct name and value', () => {
+    const calls = [];
+    const r = make({
+      onInputEntity: (name, value) => {
+        calls.push({ name, value });
+        return ENTITY_ACTION.ALLOW;
+      },
+    });
+    r.addInputEntities({ foo: 'FOO', bar: 'BAR' });
+    expect(calls).toHaveLength(2);
+    expect(calls.find(c => c.name === 'foo')).toEqual({ name: 'foo', value: 'FOO' });
+    expect(calls.find(c => c.name === 'bar')).toEqual({ name: 'bar', value: 'BAR' });
+  });
+
+  test('hook can selectively allow/block individual entities', () => {
+    const r = make({
+      onInputEntity: (name) =>
+        name === 'allowed' ? ENTITY_ACTION.ALLOW : ENTITY_ACTION.BLOCK,
+    });
+    r.addInputEntities({ allowed: 'YES', blocked: 'NO' });
+    expect(r.decode('&allowed;')).toBe('YES');
+    expect(r.decode('&blocked;')).toBe('&blocked;');
+  });
+
+  test('no hook → all input entities accepted', () => {
+    const r = make({});
+    r.addInputEntities({ tmp: 'TMP' });
+    expect(r.decode('&tmp;')).toBe('TMP');
+  });
+
+  test('blocked input entity does not interfere with base entities', () => {
+    const r = make({ onInputEntity: () => ENTITY_ACTION.BLOCK });
+    r.addInputEntities({ lt: 'BLOCKED' }); // tries to shadow &lt;
+    expect(r.decode('&lt;')).toBe('<'); // base map still resolves it
+  });
+
+  test('BLOCK on input entity does not affect external entities with same name', () => {
+    const r = make({ onInputEntity: () => ENTITY_ACTION.BLOCK });
+    r.setExternalEntities({ brand: 'Acme' });
+    r.addInputEntities({ brand: 'INPUT' }); // blocked
+    expect(r.decode('&brand;')).toBe('Acme'); // falls through to external
+  });
+
+  test('input entity hook runs fresh on every addInputEntities call', () => {
+    const log = [];
+    const r = make({
+      onInputEntity: (name) => {
+        log.push(name);
+        return ENTITY_ACTION.ALLOW;
+      },
+    });
+    r.addInputEntities({ a: 'A' });
+    r.addInputEntities({ b: 'B' });
+    expect(log).toEqual(['a', 'b']);
+  });
+});
+
+describe('onExternalEntity and onInputEntity — independence', () => {
+  test('onExternalEntity does not affect addInputEntities', () => {
+    const r = make({ onExternalEntity: () => ENTITY_ACTION.BLOCK });
+    r.addInputEntities({ inp: 'INPUT' }); // no input hook → accepted
+    expect(r.decode('&inp;')).toBe('INPUT');
+  });
+
+  test('onInputEntity does not affect setExternalEntities', () => {
+    const r = make({ onInputEntity: () => ENTITY_ACTION.BLOCK });
+    r.setExternalEntities({ ext: 'EXTERNAL' }); // no external hook → accepted
+    expect(r.decode('&ext;')).toBe('EXTERNAL');
+  });
+
+  test('both hooks can coexist independently', () => {
+    const r = make({
+      onExternalEntity: (name) =>
+        name === 'allowedExt' ? ENTITY_ACTION.ALLOW : ENTITY_ACTION.BLOCK,
+      onInputEntity: (name) =>
+        name === 'allowedInp' ? ENTITY_ACTION.ALLOW : ENTITY_ACTION.BLOCK,
+    });
+    r.setExternalEntities({ allowedExt: 'EXT', blockedExt: 'NOPE' });
+    r.addInputEntities({ allowedInp: 'INP', blockedInp: 'NOPE' });
+
+    expect(r.decode('&allowedExt;')).toBe('EXT');
+    expect(r.decode('&blockedExt;')).toBe('&blockedExt;');
+    expect(r.decode('&allowedInp;')).toBe('INP');
+    expect(r.decode('&blockedInp;')).toBe('&blockedInp;');
+  });
+});

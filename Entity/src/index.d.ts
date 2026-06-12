@@ -6,6 +6,50 @@
 export type EntityValFn = (match: string, captured: string, ...rest: unknown[]) => string;
 
 // ---------------------------------------------------------------------------
+// Entity registration hook
+// ---------------------------------------------------------------------------
+
+/**
+ * Actions returned by `onExternalEntity` / `onInputEntity` hooks.
+ * Use the `ENTITY_ACTION` constant object instead of raw strings to avoid typos.
+ *
+ * - `'allow'` — register and expand the entity normally
+ * - `'block'` — silently skip the entity (not registered, treated as unknown)
+ * - `'throw'` — abort registration with an error
+ */
+export type EntityHookAction = 'allow' | 'block' | 'throw';
+
+/**
+ * Immutable constant bag for entity registration hook return values.
+ *
+ * @example
+ * import { ENTITY_ACTION } from '@nodable/entities';
+ * const dec = new EntityDecoder({
+ *   onInputEntity: (_name, _value) => ENTITY_ACTION.BLOCK,
+ * });
+ */
+export const ENTITY_ACTION: Readonly<{
+  /** Register and expand the entity normally. */
+  ALLOW: 'allow';
+  /** Silently skip this entity — it will not be registered. */
+  BLOCK: 'block';
+  /** Throw an error, aborting entity registration. */
+  THROW: 'throw';
+}>;
+
+/**
+ * Callback signature for `onExternalEntity` and `onInputEntity` hooks.
+ *
+ * Called once per entity **at registration time** (not at decode time).
+ * Return `ENTITY_ACTION.ALLOW` (or `'allow'`) to accept, `ENTITY_ACTION.BLOCK`
+ * to silently skip, or `ENTITY_ACTION.THROW` to raise an error.
+ *
+ * @param name  — the entity name without `&` / `;`, e.g. `"brand"`
+ * @param value — the resolved string value after any `{regex,val}` unwrapping
+ */
+export type EntityRegistrationHook = (name: string, value: string) => EntityHookAction;
+
+// ---------------------------------------------------------------------------
 // Encoder options
 // ---------------------------------------------------------------------------
 
@@ -191,6 +235,39 @@ export interface EntityDecoderOptions {
    * Numeric Character Reference (NCR) policy.
    */
   ncr?: EntityDecoderNCROptions;
+
+  /**
+   * Hook called once **at registration time** for each entity passed to
+   * `setExternalEntities()` or `addExternalEntity()`.
+   *
+   * - `'allow'` (or `ENTITY_ACTION.ALLOW`) — register the entity normally (default)
+   * - `'block'` (or `ENTITY_ACTION.BLOCK`) — silently skip; the entity is not stored
+   * - `'throw'` (or `ENTITY_ACTION.THROW`) — abort registration with an `Error`
+   *
+   * The hook receives the entity name (without `&`/`;`) and the resolved string
+   * value. It is **not** called during `decode()` — only when entities are added.
+   *
+   * @example
+   * const dec = new EntityDecoder({
+   *   onExternalEntity: (name, value) =>
+   *     DANGEROUS_NAMES.has(name) ? ENTITY_ACTION.BLOCK : ENTITY_ACTION.ALLOW,
+   * });
+   */
+  onExternalEntity?: EntityRegistrationHook | null;
+
+  /**
+   * Hook called once **at registration time** for each entity passed to
+   * `addInputEntities()`.
+   *
+   * Follows the same `'allow' | 'block' | 'throw'` contract as `onExternalEntity`.
+   *
+   * @example
+   * const dec = new EntityDecoder({
+   *   // Block all input / DOCTYPE entities unconditionally
+   *   onInputEntity: () => ENTITY_ACTION.BLOCK,
+   * });
+   */
+  onInputEntity?: EntityRegistrationHook | null;
 }
 
 // ---------------------------------------------------------------------------

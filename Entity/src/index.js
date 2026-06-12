@@ -6,7 +6,7 @@
 
  */
 
-export { default as EntityDecoder } from './EntityDecoder.js';
+export { default as EntityDecoder, ENTITY_ACTION } from './EntityDecoder.js';
 export {
   COMMON_HTML,
   XML,
