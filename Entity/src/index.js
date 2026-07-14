@@ -10,7 +10,6 @@ export { default as EntityDecoder, ENTITY_ACTION } from './EntityDecoder.js';
 export {
   COMMON_HTML,
   XML,
-  ALL_ENTITIES,
   ARROWS,
   BASIC_LATIN,
   CURRENCY,
@@ -25,5 +24,6 @@ export {
   PUNCTUATION,
   SHAPES,
 } from './entities.js';
+export { ALL_ENTITIES } from './all-entities.js';
 
 export { default as EntityEncoder } from './EntityEncoder.js';

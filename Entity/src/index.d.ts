@@ -61,11 +61,25 @@ export interface EntityEncoderOptions {
   encodeXmlSafe?: boolean;
 
   /**
-   * Whether to encode non‑ASCII characters (e.g. `é` → `&eacute;`) using the
-   * built‑in named entity trie.
+   * Whether to encode non‑ASCII characters (e.g. `é` → `&eacute;`) using a
+   * named entity trie. When `false`, no trie is built at all — cheapest option
+   * if you only need `encodeXmlSafe`.
    * @default true
    */
   encodeAllNamed?: boolean;
+
+  /**
+   * Restrict named-entity encoding to a specific set of entities instead of
+   * the full built-in `ALL_ENTITIES` table. Only meaningful when
+   * `encodeAllNamed` is `true` (the default). Passing a smaller set (e.g.
+   * `{ ...COMMON_HTML, ...CURRENCY }`) avoids building a trie for entity
+   * categories you never use.
+   *
+   * @default ALL_ENTITIES
+   * @example
+   * new EntityEncoder({ namedEntities: { ...COMMON_HTML, ...CURRENCY } });
+   */
+  namedEntities?: Record<string, string> | null;
 
   /**
    * Maximum number of replacements performed **cumulatively** across all

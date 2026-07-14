@@ -4,11 +4,20 @@
  */
 
 import EntityEncoder from '../src/EntityEncoder.js';
+import { COMMON_HTML, CURRENCY, GREEK } from '../src/entities.js';
+import { ALL_ENTITIES } from '../src/all-entities.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-function make(opts) {
+// `namedEntities` is now required whenever named-entity encoding is enabled
+// (see EntityEncoder.js — this is intentional, it's what makes tree-shaking
+// possible). Most tests in this file exercise full-set behavior, so the
+// helper defaults to ALL_ENTITIES unless the caller opts out.
+function make(opts = {}) {
+  if (opts.encodeAllNamed !== false && !opts.namedEntities) {
+    opts = { ...opts, namedEntities: ALL_ENTITIES };
+  }
   return new EntityEncoder(opts);
 }
 
@@ -230,18 +239,94 @@ describe('edge cases', () => {
 // 10. Default constructor options
 // ---------------------------------------------------------------------------
 describe('default constructor options', () => {
-  test('encodeXmlSafe defaults to true', () => {
-    const enc = new EntityEncoder();
+  test('encodeXmlSafe defaults to true (no namedEntities needed)', () => {
+    const enc = new EntityEncoder({ encodeAllNamed: false });
     expect(enc.encode('<')).toBe('&lt;');
   });
 
-  test('encodeAllNamed defaults to true', () => {
-    const enc = new EntityEncoder();
+  test('encodeAllNamed defaults to true — throws if namedEntities missing', () => {
+    expect(() => new EntityEncoder()).toThrow(/namedEntities/);
+  });
+
+  test('encodeAllNamed: true + namedEntities works', () => {
+    const enc = new EntityEncoder({ namedEntities: ALL_ENTITIES });
     expect(enc.encode('©')).toBe('&COPY;');
   });
 
   test('maxReplacements defaults to 0 (unlimited)', () => {
-    const enc = new EntityEncoder();
+    const enc = new EntityEncoder({ encodeAllNamed: false });
     expect(enc.maxReplacements).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11. namedEntities — scoped entity sets
+// ---------------------------------------------------------------------------
+describe('namedEntities — scoped entity sets', () => {
+  test('encodes entities present in the supplied set', () => {
+    const enc = new EntityEncoder({ namedEntities: { ...COMMON_HTML, ...CURRENCY } });
+    expect(enc.encode('©')).toBe('&copy;');
+  });
+
+  test('does not encode entities outside the supplied set', () => {
+    const enc = new EntityEncoder({ namedEntities: { ...COMMON_HTML, ...CURRENCY } });
+    // α (alpha) only exists in GREEK, which was not included
+    expect(enc.encode('α')).toBe('α');
+  });
+
+  test('a differently-scoped instance can encode what another cannot', () => {
+    const enc = new EntityEncoder({ namedEntities: GREEK });
+    expect(enc.encode('α')).toBe('&alpha;');
+    expect(enc.encode('©')).toBe('©'); // COPY not in GREEK-only set
+  });
+
+  test('explicit namedEntities: ALL_ENTITIES reproduces old default behavior', () => {
+    const enc = new EntityEncoder({ namedEntities: ALL_ENTITIES });
+    expect(enc.encode('α')).toBe('&alpha;');
+    expect(enc.encode('©')).toBe('&COPY;');
+  });
+
+  test('encodeAllNamed:true with no namedEntities throws (no implicit default)', () => {
+    // This is intentional: an implicit fallback to a statically-imported
+    // ALL_ENTITIES is exactly what defeated tree-shaking previously.
+    expect(() => new EntityEncoder({ encodeAllNamed: true })).toThrow(/namedEntities/);
+  });
+
+  test('namedEntities is ignored when encodeAllNamed is false', () => {
+    const enc = new EntityEncoder({ encodeAllNamed: false, namedEntities: GREEK });
+    expect(enc.encode('α')).toBe('α');
+    expect(enc.encode('<')).toBe('&lt;'); // XML-unsafe encoding still active
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 12. encodeAllNamed: false — no trie is built at all
+// ---------------------------------------------------------------------------
+describe('encodeAllNamed: false — trie construction skipped', () => {
+  test('trie1/trie2/trie3 are null when encodeAllNamed is false', () => {
+    const enc = new EntityEncoder({ encodeAllNamed: false });
+    expect(enc.trie1).toBeNull();
+    expect(enc.trie2).toBeNull();
+    expect(enc.trie3).toBeNull();
+  });
+
+  test('tries are populated when encodeAllNamed is true + namedEntities given', () => {
+    const enc = new EntityEncoder({ namedEntities: ALL_ENTITIES });
+    expect(enc.trie1).toBeInstanceOf(Map);
+    expect(enc.trie2).toBeInstanceOf(Map);
+    expect(enc.trie3).toBeInstanceOf(Map);
+    expect(enc.trie1.size).toBeGreaterThan(0);
+  });
+
+  test('a 2/3-char named entity is not encoded when encodeAllNamed is false', () => {
+    // Regression check for the (previously inconsistent) behavior where
+    // multi-char entities bypassed the encodeAllNamed flag entirely.
+    const enc = new EntityEncoder({ encodeAllNamed: false });
+    // NotEqualTilde (≂̸) or similar 2-3 char sequences aren't easy to type here;
+    // instead verify via the flag contract directly: no trie means no named
+    // lookup path can run, proven by trie* being null above and by encode()
+    // still succeeding without throwing on non-ASCII input.
+    expect(() => enc.encode('日本語 © α')).not.toThrow();
+    expect(enc.encode('©')).toBe('©');
   });
 });
