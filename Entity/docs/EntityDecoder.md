@@ -133,7 +133,7 @@ Each hook receives `(name, value)` and must return one of the three `ENTITY_ACTI
 Use the constants instead of the raw strings to avoid typos.
 
 ```js
-import EntityDecoder, { ENTITY_ACTION, ALL_ENTITIES } from '@nodable/entities';
+import { EntityDecoder, ENTITY_ACTION, ALL_ENTITIES } from '@nodable/entities';
 
 const dec = new EntityDecoder({
   namedEntities: ALL_ENTITIES,
